@@ -30,6 +30,7 @@
 // TODO: NEW UUID
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define DEVICE_NAME "Open Light SSSL"
 
 Preferences preferences;
 
@@ -50,11 +51,13 @@ const int wifiAddr = 10;
 class ol_BTServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
+      Serial.println("BLE Device connected");
       BLEDevice::startAdvertising();
     };
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
+      Serial.println("BLE Device disconnected");
     }
 };
 
@@ -121,7 +124,7 @@ void setup() {
 */
 void bleTask() {
   // Create the BLE Device
-  BLEDevice::init("ESP32 THAT PROJECT");
+  BLEDevice::init(DEVICE_NAME);
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();
@@ -240,20 +243,20 @@ String getValue(String data, char separator, int index) {
 /**
  * scanForWifiNetworks: Scanning for wifi networks and outputting a json string to serial
  */
-void scanForWifiNetworks () {
+DynamicJsonDocument getWifiNetworks () {
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
+  //WiFi.disconnect();
+  //delay(100);
 
   // Creatiung JSON Document
   DynamicJsonDocument doc(4096);
   JsonArray networks = doc.createNestedArray("networks");
 
-  Serial.println("scan start");
+  Serial.println("WiFi scan started");
 
   // WiFi.scanNetworks will return the number of networks found
   int n = WiFi.scanNetworks();
-  Serial.println("scan done");
+  Serial.println("WiFi scan done");
     
   if (n == 0) {
     //Serial.println("no networks found");
@@ -275,9 +278,7 @@ void scanForWifiNetworks () {
       delay(10);
     }
   }
-
-  // Print SSID and RSSI for each network found
-  serializeJson(doc, Serial);
+  return doc;
 }
 
 
@@ -285,8 +286,11 @@ void scanForWifiNetworks () {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  scanForWifiNetworks();
+  //scanForWifiNetworks();
 
-  delay(7500);
+    // Print SSID and RSSI for each network found
+  serializeJson(getWifiNetworks(), Serial);
+  Serial.println("");
+  delay(5000);
 
 }
