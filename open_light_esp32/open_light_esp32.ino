@@ -36,8 +36,8 @@ Preferences preferences;
 
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
+bool BLE_deviceConnected = false;
+bool BLE_oldDeviceConnected = false;
 
 const int ledPin = LED_BUILTIN;
 int modeIdx;        // Mode Index (0 == BLE & 1 == WIFI)
@@ -50,13 +50,13 @@ const int wifiAddr = 10;
 
 class ol_BTServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
+      BLE_deviceConnected = true;
       Serial.println("BLE Device connected");
       BLEDevice::startAdvertising();
     };
 
     void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
+      BLE_deviceConnected = false;
       Serial.println("BLE Device disconnected");
     }
 };
@@ -82,41 +82,6 @@ class ol_BTCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
-
-void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  pinMode(ledPin, OUTPUT);
-
-  // Open Preferences with open-light namespace.
-  preferences.begin("open-light", false);
-
-  modeIdx = preferences.getInt("modeIdx", 1);
-
-  //preferences.putInt("modeIdx", modeIdx);
-  Serial.printf("Current Mode: %s\n", modeIdx != 0 ? "BLE" : "WiFi");
-
-  // close preferences
-  preferences.end();
-
-  //scanForWifiNetworks();
-
-  
-    if(modeIdx != 0){
-      //BLE MODE
-      digitalWrite(ledPin, true);
-      Serial.println("BLE MODE");
-      bleTask();
-    }else{
-      //WIFI MODE
-      digitalWrite(ledPin, false);
-      Serial.println("WIFI MODE");
-      //wifiTask();
-    }
-  
-
-
-}
 
 /*
    BLEUTOOTH TASK: Creating and enabling a Bluetooth server, ready for connecting
@@ -160,7 +125,38 @@ void bleTask() {
 }
 
 
+/*
+   handleBLEConnections:
+   Checking the Bluetooth connection and starting advertising if not connected
+   @return void
+*/
+void handleBLEConnections () {
+  if (!BLE_deviceConnected && BLE_oldDeviceConnected) {
+      delay(500); // give the bluetooth stack the chance to get things ready
+      pServer->startAdvertising(); // restart advertising
+      Serial.println("start advertising");
+      BLE_oldDeviceConnected = BLE_deviceConnected;
+  }
+  // connecting
+  if (BLE_deviceConnected && !BLE_oldDeviceConnected) {
+      // do stuff here on connecting
+      BLE_oldDeviceConnected = BLE_deviceConnected;
+  }
+}
 
+
+/*
+   notifyClients: Sending (Notifying) the client that's listening into the characteristic.  
+   @return void
+*/
+void notifyClients (String msg) {
+  if (!BLE_deviceConnected) {
+    return;
+  }
+
+  pCharacteristic->setValue((uint8_t*)&msg, 4);
+  pCharacteristic->notify();
+}
 
 
 /*
@@ -194,51 +190,6 @@ void wifiTask() {
     }
   }
 }
-
-
-/*
-   Read String: Returning string that was recived and stored in NVS
-   @param int add Address where to read from
-   @return String
-*/
-String read_String(int add) {
-  char data[100];
-  int len = 0;
-  unsigned char k;
-  k = EEPROM.read(add);
-  while (k != '\0' && len < 500) {
-    k = EEPROM.read(add + len);
-    data[len] = k;
-    len++;
-  }
-  data[len] = '\0';
-  return String(data);
-}
-
-
-/*
-   getValue: Returning string that was recived and stored in NVS
-   @param String data Data that was sent and stored in NVS
-   @param char seperator Seperator that was used to delimiter the SSID & PW
-   @param int index Index of which data string to gather
-   @return String
-*/
-String getValue(String data, char separator, int index) {
-  int found = 0;
-  int strIndex[] = {0, -1};
-  int maxIndex = data.length() - 1;
-
-  for (int i = 0; i <= maxIndex && found <= index; i++) {
-    if (data.charAt(i) == separator || i == maxIndex) {
-      found++;
-      strIndex[0] = strIndex[1] + 1;
-      strIndex[1] = (i == maxIndex) ? i + 1 : i;
-    }
-  }
-  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
-}
-
-
 
 /**
  * scanForWifiNetworks: Scanning for wifi networks and outputting a json string to serial
@@ -281,16 +232,135 @@ DynamicJsonDocument getWifiNetworks () {
   return doc;
 }
 
+/**
+ * getWifiMacAddress: Get MAC Address from WiFi Shield and print as string
+ * @return String MAC Address
+ */
+String getWifiMacAddress() {
+
+	uint8_t baseMac[6];
+
+	WiFi.macAddress(baseMac);
+
+	char baseMacChr[18] = {0};
+	sprintf(baseMacChr, "%02X:%02X:%02X:%02X:%02X:%02X", baseMac[0], baseMac[1], baseMac[2], baseMac[3], baseMac[4], baseMac[5]);
+	return String(baseMacChr);
+}
+
+
+
+/*
+   Read String: Returning string that was recived and stored in NVS
+   @param int add Address where to read from
+   @return String
+*/
+String read_String(int add) {
+  char data[100];
+  int len = 0;
+  unsigned char k;
+  k = EEPROM.read(add);
+  while (k != '\0' && len < 500) {
+    k = EEPROM.read(add + len);
+    data[len] = k;
+    len++;
+  }
+  data[len] = '\0';
+  return String(data);
+}
+
+
+/*
+ * getValue: Returning string that was recived and stored in NVS
+ * @param String data Data that was sent and stored in NVS
+ * @param char seperator Seperator that was used to delimiter the SSID & PW
+ * @param int index Index of which data string to gather
+ * @return String
+*/
+String getValue(String data, char separator, int index) {
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length() - 1;
+
+  for (int i = 0; i <= maxIndex && found <= index; i++) {
+    if (data.charAt(i) == separator || i == maxIndex) {
+      found++;
+      strIndex[0] = strIndex[1] + 1;
+      strIndex[1] = (i == maxIndex) ? i + 1 : i;
+    }
+  }
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+
+
+
+
+/**
+ * -------------------------------------------------
+ * MAIN THREAD
+ * -------------------------------------------------
+ */ 
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+
+  // Open Preferences with open-light namespace.
+  preferences.begin("open-light", false);
+
+  modeIdx = preferences.getInt("modeIdx", 1);
+
+  //preferences.putInt("modeIdx", modeIdx);
+  Serial.printf("Current Mode: %s\n", modeIdx != 0 ? "BLE" : "WiFi");
+
+  // close preferences
+  preferences.end();
+
+  //scanForWifiNetworks();
+  if(modeIdx != 0){
+    //BLE MODE
+    digitalWrite(ledPin, true);
+    Serial.println("BLE MODE");
+    bleTask();
+  }else{
+    //WIFI MODE
+    digitalWrite(ledPin, false);
+    Serial.println("WIFI MODE");
+    //wifiTask();
+  }
+  
+}
 
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  //scanForWifiNetworks();
+  if(modeIdx == 0) { 
+    // BLE Mode 
+    handleBLEConnections();
 
+    if (BLE_deviceConnected) {
+      while(BLE_deviceConnected) {
+
+        char output[2048];
+        serializeJson(getWifiNetworks(), output);
+        notifyClients(output);
+        delay(5000);
+              
+      }
+    }
+
+  } else {
+    // WiFi Mode
+
+
+  }
+  //scanForWifiNetworks();
     // Print SSID and RSSI for each network found
-  serializeJson(getWifiNetworks(), Serial);
+  
+  getWifiMacAddress();
   Serial.println("");
-  delay(5000);
+  
 
 }
