@@ -40,7 +40,7 @@ bool BLE_deviceConnected = false;
 bool BLE_oldDeviceConnected = false;
 
 const int ledPin = LED_BUILTIN;
-int modeIdx;        // Mode Index (0 == BLE & 1 == WIFI)
+int modeIdx;        // Mode Index (1 == BLE & 0 == WIFI)
 
 //EEPROM ADDRESSES
 const int modeAddr = 0;
@@ -83,6 +83,39 @@ class ol_BTCallbacks: public BLECharacteristicCallbacks {
 };
 
 
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+
+  // Open Preferences with open-light namespace.
+  preferences.begin("open-light", false);
+
+  modeIdx = preferences.getInt("modeIdx", 1);
+
+  //preferences.putInt("modeIdx", modeIdx);
+  Serial.printf("Current Mode: %s\n", modeIdx != 0 ? "BLE" : "WiFi");
+
+  // close preferences
+  preferences.end();
+
+  //scanForWifiNetworks();
+  if(modeIdx != 0){
+    //BLE MODE
+    digitalWrite(ledPin, true);
+    Serial.println("BLE MODE");
+    bleTask();
+  }else{
+    //WIFI MODE
+    digitalWrite(ledPin, false);
+    Serial.println("WIFI MODE");
+    //wifiTask();
+  }
+  
+}
+
+
 /*
    BLEUTOOTH TASK: Creating and enabling a Bluetooth server, ready for connecting
    @return void
@@ -103,8 +136,8 @@ void bleTask() {
                       CHARACTERISTIC_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
-                      BLECharacteristic::PROPERTY_NOTIFY |
-                      BLECharacteristic::PROPERTY_INDICATE
+                      BLECharacteristic::PROPERTY_NOTIFY 
+                      //BLECharacteristic::PROPERTY_INDICATE
                     );
 
   pCharacteristic->setCallbacks(new ol_BTCallbacks());
@@ -154,7 +187,9 @@ void notifyClients (String msg) {
     return;
   }
 
-  pCharacteristic->setValue((uint8_t*)&msg, 4);
+  std::string data = msg.c_str();
+
+  pCharacteristic->setValue(data);
   pCharacteristic->notify();
 }
 
@@ -301,52 +336,28 @@ String getValue(String data, char separator, int index) {
  * -------------------------------------------------
  */ 
 
-void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  pinMode(ledPin, OUTPUT);
-
-  // Open Preferences with open-light namespace.
-  preferences.begin("open-light", false);
-
-  modeIdx = preferences.getInt("modeIdx", 1);
-
-  //preferences.putInt("modeIdx", modeIdx);
-  Serial.printf("Current Mode: %s\n", modeIdx != 0 ? "BLE" : "WiFi");
-
-  // close preferences
-  preferences.end();
-
-  //scanForWifiNetworks();
-  if(modeIdx != 0){
-    //BLE MODE
-    digitalWrite(ledPin, true);
-    Serial.println("BLE MODE");
-    bleTask();
-  }else{
-    //WIFI MODE
-    digitalWrite(ledPin, false);
-    Serial.println("WIFI MODE");
-    //wifiTask();
-  }
-  
-}
-
-
 void loop() {
   // put your main code here, to run repeatedly:
 
-  if(modeIdx == 0) { 
+  if(modeIdx != 0) { 
     // BLE Mode 
     handleBLEConnections();
 
     if (BLE_deviceConnected) {
       while(BLE_deviceConnected) {
+        
+        Serial.println("Getting WiFi networks...");
+        
+        String output = "TestFromESP32";
+        // serializeJson(getWifiNetworks(), output);
+        //notifyClients(output);
 
-        char output[2048];
-        serializeJson(getWifiNetworks(), output);
-        notifyClients(output);
-        delay(5000);
+        pCharacteristic->setValue(output.c_str());
+        pCharacteristic->notify();
+        
+        Serial.println("Notifying: ");
+        Serial.println(output);
+        delay(2000);
               
       }
     }
@@ -356,11 +367,7 @@ void loop() {
 
 
   }
-  //scanForWifiNetworks();
-    // Print SSID and RSSI for each network found
   
-  getWifiMacAddress();
-  Serial.println("");
-  
+//  getWifiMacAddress(); 
 
 }
