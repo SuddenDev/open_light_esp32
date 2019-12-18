@@ -348,11 +348,11 @@ void loop() {
         
         Serial.println("Getting WiFi networks...");
         
-        String output = "TestFromESP32";
-        // serializeJson(getWifiNetworks(), output);
+        char output[4096];
+        serializeJson(getWifiNetworks(), output);
         //notifyClients(output);
 
-        pCharacteristic->setValue(output.c_str());
+        pCharacteristic->setValue((uint8_t*)&output, 4096);
         pCharacteristic->notify();
         
         Serial.println("Notifying: ");
