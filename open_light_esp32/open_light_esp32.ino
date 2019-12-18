@@ -187,10 +187,26 @@ void notifyClients (String msg) {
     return;
   }
 
-  std::string data = msg.c_str();
+  int mtu = 20; //mtu
+  int p = msg.length() / mtu; //packages
+  String s = "@@start@@"; // start indicator
+  String e = "@@end@@"; //end indicator
 
-  pCharacteristic->setValue(data);
+  // Sending start
+  pCharacteristic->setValue(s.c_str());
   pCharacteristic->notify();
+
+  // Sending msg in mtu size
+  for (int i = 0; i <= p; i++) {  
+    pCharacteristic->setValue(msg.substring(i * mtu, (i+1)*mtu).c_str());
+    pCharacteristic->notify();
+    delay(10);
+  }
+  
+  // Sending end
+  pCharacteristic->setValue(e.c_str());
+  pCharacteristic->notify();
+
 }
 
 
@@ -348,12 +364,12 @@ void loop() {
         
         Serial.println("Getting WiFi networks...");
         
-        char output[4096];
+        String output;
         serializeJson(getWifiNetworks(), output);
-        //notifyClients(output);
+        notifyClients(output);
 
-        pCharacteristic->setValue((uint8_t*)&output, 4096);
-        pCharacteristic->notify();
+        //pCharacteristic->setValue((uint8_t*)&output, 128);
+        //pCharacteristic->notify();
         
         Serial.println("Notifying: ");
         Serial.println(output);
