@@ -17,13 +17,14 @@
  * [ ] Remove EEPROM.h and replace with Preferences.h
  * [ ] Create Connection State Management for loop()
  * [ ] Refactoring Code
- * [ ] Sending JSON via BLE to Device 
+ * [x] Sending JSON via BLE to Device 
  * [ ] Retriving / parsing JSON from app and connect to network
  * [ ] Saving network details to Preferences 
  * [ ] Making a secure connection with authentication??
  * [ ] Webserver API setup and routes 
  * [ ] Static IP and option to save it
  * [ ] Response to app after establishing wifi connection
+ * [ ] mDNS
  */
 
 
@@ -39,7 +40,7 @@ BLECharacteristic* pCharacteristic = NULL;
 bool BLE_deviceConnected = false;
 bool BLE_oldDeviceConnected = false;
 
-const int ledPin = LED_BUILTIN;
+//const int ledPin = LED_BUILTIN;
 int modeIdx;        // Mode Index (1 == BLE & 0 == WIFI)
 
 //EEPROM ADDRESSES
@@ -87,7 +88,7 @@ class ol_BTCallbacks: public BLECharacteristicCallbacks {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  pinMode(ledPin, OUTPUT);
+  //pinMode(ledPin, OUTPUT);
 
   // Open Preferences with open-light namespace.
   preferences.begin("open-light", false);
@@ -103,12 +104,12 @@ void setup() {
   //scanForWifiNetworks();
   if(modeIdx != 0){
     //BLE MODE
-    digitalWrite(ledPin, true);
+    //digitalWrite(ledPin, true);
     Serial.println("BLE MODE");
     bleTask();
   }else{
     //WIFI MODE
-    digitalWrite(ledPin, false);
+    //digitalWrite(ledPin, false);
     Serial.println("WIFI MODE");
     //wifiTask();
   }
